@@ -1,0 +1,22 @@
+---
+title: "Oyster aquaculture sentiment analysis"
+author: Sofia Rodas
+date: June 1, 2026
+format: html
+message: FALSE
+warning: FALSE
+---
+
+This quarto document analyzes the differences in sentiment analysis for oyster aquaculture throughout different regions of the world. The data is downloaded through Nexis Unis with the search term "oyster aquaculture". Articles from January 1st 2024 to present articles, May 2026 articles are included in the analysis. 
+
+### Background
+
+The seafood industry is a prolific industry that feeds millions of people around the world. With the increasing demands on fisheries, more aquaculture operations are being established. Among these industries is the oyster aquaculture industry. Oyster aquaculture is uniquely positioned as a potential to both mitigate against climate change by providing coastline protection and as a means of feeding our growing populations. 
+
+However, some potential drawbacks to oyster aquaculture operations exist. Oyster aquaculture operations can disturb the natural ecosystems if the operation includes heavy equipment. Additionally, oysters reared in aquaculture could be more susceptible to disease than natural oysters. This counters the potential for these oysters to increase seafood production.
+
+My interest is in analyzing whether specific regions have more negative or more positive sentiments about oyster aquaculture. 
+
+### Nexis Unis
+
+Nexis Unis oyster aquaculture data was downloaded for the US, Europe, Eastern Asia, and Latin America. These four regions were analyzed to assess the sentiments of oyster aquaculture and compare findings by region. These regions were selected for this analysis because the top five countries for oyster aquaculture production are China, South Korea, Japan, US, and France. Hence these are areas of interest in the topic of oyster aquaculture. 
