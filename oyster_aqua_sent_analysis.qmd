@@ -126,7 +126,7 @@ bing_scores <- ea_corpus |>
   mutate(score = positive - negative)
 
 # join scores to posts
-ea_corpus_scores <- ea_corpus |> 
+ea_corpus <- ea_corpus |> 
   tidy() |>
   left_join(bing_scores |> 
               select(id, score), by = "id") |> 
@@ -135,8 +135,9 @@ ea_corpus_scores <- ea_corpus |>
 
 ```
 
+Visualize the positive and negative sentiments based on the bing scores.
 
-```{r nrc-plot}
+```{r}
 # visualize sentiment about oyster aquaculture
 bing_scores |> 
   summarise(positive = sum(positive), negative = sum(negative)) |>
@@ -157,7 +158,6 @@ afinn <- get_sentiments("afinn")
 
 #score text
 afinn_scores <- ea_corpus |> 
-  tidy() |> 
   unnest_tokens(word, text) |> 
   inner_join(afinn, by = "word") |> 
   group_by(id)|> 
@@ -165,15 +165,31 @@ afinn_scores <- ea_corpus |>
 
 
 #join scores to posts  
-ea_corpus_scores <- ea_corpus |>
-  tidy() |> 
+ea_corpus <- ea_corpus |>
   left_join(afinn_scores, by ="id") 
 
 # remove na's from the afin scores column
-ea_corpus_scores <- ea_corpus_scores |> 
+ea_corpus <- ea_corpus |> 
   mutate(affin_score = replace_na(affin_score, 0))
-
 ```
+
+Visualize AFINN score 
+```{r}
+ea_corpus$affin_sent <-  if_else(ea_corpus$affin_score > 0, "Positive", "Negative")
+
+# visualize sentiment about oyster aquaculture
+ea_corpus |> 
+  count(affin_sent) |> 
+ggplot() + 
+  geom_col(aes(affin_sent, n),
+           fill = "darkblue") +
+  coord_flip() + 
+  theme_minimal() + 
+  labs(title = "East Asian Sentiment about 'Oyster Aquaculture'",
+       y = "",
+       x = "Sentiment")
+```
+
 
 ### NRC lexicon
 ```{r}
@@ -181,22 +197,22 @@ nrc <- get_sentiments("nrc")
 
 # calculate the nrc scores
 nrc_scores <- ea_corpus |> 
-  tidy() |> 
   unnest_tokens(word, text) |> 
   inner_join(nrc, by = "word") |> 
   group_by(id) |> 
   count(sentiment)
 
 #join scores to post
-ea_corpus_scores <- ea_corpus |> 
-  tidy() |> 
+ea_corpus <- ea_corpus |> 
   left_join(nrc_scores, by = "id")
 
 # replace na scores with zero
-ea_corpus_scores <- ea_corpus_scores |> 
+ea_corpus <- ea_corpus |> 
   mutate(nrc_score = replace_na(n, 0)) |> 
   select(-n)
 ```
+
+Visualize the sentiments found in the text discussing oyster aquaculture in East Asia.
 ```{r}
 #visualize bluesky sentiment about sea level rise
 ggplot(nrc_scores) + 
@@ -204,7 +220,7 @@ ggplot(nrc_scores) +
            fill = "darkblue") +
   coord_flip() + 
   theme_minimal() + 
-  labs(title = "East Asia Sentiment about 'Oyster Aquaculture",
+  labs(title = "East Asia Sentiment about 'Oyster Aquaculture'",
        y = "",
        x = "Sentiment")
 ```
