@@ -21,7 +21,17 @@ My interest is in analyzing whether specific regions have more negative or more 
 
 Nexis Unis oyster aquaculture data was downloaded for the US, Europe, Eastern Asia, and Latin America. These four regions were analyzed to assess the sentiments of oyster aquaculture and compare findings by region. These regions were selected for this analysis because the top five countries for oyster aquaculture production are China, South Korea, Japan, US, and France. Hence these are areas of interest in the topic of oyster aquaculture and the regions for which text was procured.  
 
-One limitation of this study is that all the articles must be in English to properly analyze them. There are great discrepancies in the number of articles for each region. These findings are nevertheless interesting as they show what types of texts are translated. In other words, the translated text acts as an analysis of what the perception of the sentiment for these regions is from a US scholar perception and not necessarily the true sentiment itself. 
+One limitation of this study is that all the articles must be in English to properly analyze them. There are great discrepancies in the number of articles for each region. These findings are nevertheless interesting as they show what types of texts are translated. In other words, the translated text acts as an analysis of what the perception of the sentiment towards oyster aquaculture is for these regions from a US scholar perception and not necessarily the true sentiment these regions possess. 
+
+#### Analysis scale
+
+Articles analyzed from the United States: 422 articles
+
+Articles analyzed from Europe: 134 articles
+
+Articles analyzed from Eastern Asia: 80 articles
+
+
 
 ```{r}
 # load necessary libraries
@@ -43,6 +53,10 @@ library(sentimentr)
 ```
 
 # Analyze United States text sentiment for oyster aquaculture
+
+Since we have the most data from the United States we'll complete the text analysis on this data and choose the best lexicon-based approach. This approach will then be applied to the articles from the other regions. Using the same lexicon-based approach is important to ensure mis-characterizations are not occuring simply by choosing a different lexicon model for different regions. 
+
+### Read in the data
 ```{r}
 # extract data from the files
 pre_files <- list.files(
@@ -68,13 +82,9 @@ df <- tibble(
 )
 ```
 
-**1. Build and clean your corpus**
-First we create a corpus from our articles and clean the data. The primary 
+## Build and clean our corpus
 
-## Build the Corpus
-
-We use `corpus()` from {quanteda} to build the corpus from our data
-frame.
+First we create a corpus from our articles and clean the data. The primary intention is to make the text usable for the sentiment analysis. We also remove stop words that are specific to this topic to make the analysis more complete and accurate. 
 
 ```{r corpus}
 us_corpus <- corpus(x=df, text_field = "text")
@@ -87,30 +97,13 @@ I removed common journalistic words as well as words that first appeared in my c
 ```{r tokens}
 add_stops <- c(quanteda::stopwords("en", source = "smart"),
                "said", "says", "told", "according", 
-               "`", "1", "vol", "pg", "fig", "2", "Fig")
+               "`", "1", "vol", "pg", "fig", "2", "Fig", "Vol")
 
 toks <- tokens(us_corpus, remove_punct = TRUE) |> 
   tokens_tolower()
 
 toks1 <- tokens_select(toks, pattern = add_stops, selection = "remove")
 ```
-
-I don't think i need to do this. I think the sentiment analysis works on the words not the dfm. 
-Build the Document-Feature Matrix
-
-I built a document-feature matrix (DFM) to remove words that are used in 2 or fewer articles.
-
-```{r dfm}
-# dfm1 <- dfm(toks1)
-# dfm2 <- dfm_trim(dfm1, min_docfreq = 2)
-# 
-# # Remove empty rows — LDA will error on these
-# sel_idx <- slam::row_sums(dfm2) > 0
-# 
-# dfm <- dfm2[sel_idx,]
-
-```
-
 
 ### Bing lexicon sentiments
 ```{r}
@@ -144,7 +137,7 @@ bing_scores |>
   pivot_longer(everything(), names_to = "sentiment", values_to = "n") |>
   ggplot() + 
   geom_col(aes(reorder(sentiment, n), n),
-           fill = "darkblue") +
+           fill = "#161B33") +
   coord_flip() + 
   theme_minimal() + 
   labs(title = "United States Bing Sentiment about 'Oyster Aquaculture'",
@@ -183,7 +176,7 @@ us_corpus |>
   count(affin_sent) |> 
 ggplot() + 
   geom_col(aes(affin_sent, n),
-           fill = "darkblue") +
+           fill = "#161B33") +
   coord_flip() + 
   theme_minimal() + 
   labs(title = "United States AFIN Sentiment about 'Oyster Aquaculture'",
@@ -218,7 +211,7 @@ Visualize the sentiments found in the text discussing oyster aquaculture in the 
 #visualize bluesky sentiment about sea level rise
 ggplot(nrc_scores) + 
   geom_col(aes(reorder(sentiment, n), n),
-           fill = "darkblue") +
+           fill = "#161B33") +
   coord_flip() + 
   theme_minimal() + 
   labs(title = "United States NRC Sentiment about 'Oyster Aquaculture'",
@@ -242,7 +235,7 @@ us_corpus |>
   count(vader_sent) |> 
 ggplot() + 
   geom_col(aes(vader_sent, n),
-           fill = "darkblue") +
+           fill = "#161B33") +
   coord_flip() + 
   theme_minimal() + 
   labs(title = "United States VADER Sentiment about 'Oyster Aquaculture'",
@@ -252,7 +245,7 @@ ggplot() +
 
 # Explore classification differences between the different lexicon sentiment analysis
 
-For this analysis, we start by analyzing the differences between the BING and the AFINN scores. When the scores do not match, one score being negative and one score being positive, let's analyze which is more accurate. We can also analyze what the NRC and VADER score show. 
+For this analysis, we start by analyzing the differences between the BING and the AFINN scores. When the scores do not match, one score being negative and one score being positive, let's analyze which is more accurate. We can also analyze what the NRC and VADER score show. Then we'll pick the best model and apply it to the text for Eastern Asian and Europe.
 
 ```{r}
 # select those texts where the bing and afinn score don't match
@@ -266,20 +259,326 @@ diff_reorder<- diff_bing_affin |>
   mutate(diff_bing_affin = abs(bing_score - affin_score)) |> 
   arrange(desc(diff_bing_affin))
 
-# calculate average NRC scores
+# calculate percent of positive nrc scores
+nrc_posneg <- diff_reorder |> 
+  filter(sentiment == "positive" | sentiment == "negative") |> 
+  group_by(id, sentiment) |> 
+  summarize(n = sum(nrc_score)) |> 
+  ungroup() |> 
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) |>
+  mutate(nrc_positive_pct = positive / (positive + negative))
+
+# add the percent positive nrc scores to the diff_reorder df
 diff_reorder <- diff_reorder |> 
-                          group_by(id) |> 
-                          mutate(nrc_avg = mean(nrc_score))
+  left_join(nrc_posneg, by = "id")
+
 ```
 
-Explore the greatest mis-classifications and determine which is classification is best
+### Explore the greatest mis-classifications and determine which is classification is best. 
+
 ```{r}
-diff_reorder$text[1]
+print(substr(diff_reorder$text[1], start = 1, stop = 500))
 paste0("The BING score is ", diff_reorder$bing_score[1])
 paste0("The AFINN score is ", diff_reorder$affin_score[1])
-paste0("The NRC score is ", diff_reorder$nrc_avg[1])
+paste0("The NRC score is ", diff_reorder$nrc_positive_pct[1])
 paste0("The VADER score is ", diff_reorder$vader_score[1])
 
 ```
 
-Overall the text is scientific. 
+Overall the text is scientific. The BING score is negative while all of the other scores are positive. Both reading the text and the majority of the sentiment scores being negative indicate that the BING score is wrong. For this specific example I would choose the NRC score. The NRC score shows the text is a little over half positive. This seems appropriate for the text. I am biased to choosing the NRC score when it performs similarly to the other lexicon sentiment scores because it allows us to investigate further sentiments with it's eight category classifications. 
+
+
+```{r}
+print(substr(diff_reorder$text[11], start = 1, stop = 50000))
+paste0("The BING score is ", diff_reorder$bing_score[11])
+paste0("The AFINN score is ", diff_reorder$affin_score[11])
+paste0("The NRC score is ", diff_reorder$nrc_positive_pct[11])
+paste0("The VADER score is ", diff_reorder$vader_score[11])
+
+```
+
+
+```{r}
+print(substr(diff_reorder$text[21], start = 1, stop = 50000))
+paste0("The BING score is ", diff_reorder$bing_score[21])
+paste0("The AFINN score is ", diff_reorder$affin_score[21])
+paste0("The NRC score is ", diff_reorder$nrc_positive_pct[21])
+paste0("The VADER score is ", diff_reorder$vader_score[21])
+
+```
+
+
+```{r}
+print(substr(diff_reorder$text[41], start = 1, stop = 50000))
+paste0("The BING score is ", diff_reorder$bing_score[41])
+paste0("The AFINN score is ", diff_reorder$affin_score[41])
+paste0("The NRC score is ", diff_reorder$nrc_positive_pct[41])
+paste0("The VADER score is ", diff_reorder$vader_score[41])
+```
+
+```{r}
+print(substr(diff_reorder$text[51], start = 1, stop = 50000))
+paste0("The BING score is ", diff_reorder$bing_score[51])
+paste0("The AFINN score is ", diff_reorder$affin_score[51])
+paste0("The NRC score is ", diff_reorder$nrc_positive_pct[51])
+paste0("The VADER score is ", diff_reorder$vader_score[51])
+```
+# Choosing the best lexicon for the analysis of oyster aquaculture text
+
+No lexicon analysis tool is perfect. We select the lexicon analysis approach that best characterizes the text. Based on the analysis above BING is the best generalizable lexicon analysis tool. We'll compare the BING scores for the different regions.
+
+# Europe text sentiment analysis about oyster aquaculture
+
+### Read in the data
+```{r}
+# extract data from the files
+pre_files <- list.files(
+  path = here::here("data", "oysteraqua_europe"),   
+  pattern = "\\.docx$",
+  full.names = TRUE,
+  recursive = TRUE,
+  ignore.case = TRUE
+)
+
+pre_dat <- lnt_read(pre_files)
+
+pre_meta_df       <- pre_dat@meta
+pre_articles_df   <- pre_dat@articles
+pre_paragraphs_df <- pre_dat@paragraphs
+
+df <- tibble(
+  date     = pre_meta_df$Date,
+  headline = pre_meta_df$Headline,
+  id       = pre_meta_df$ID,
+  text     = pre_articles_df$Article,
+  source   = pre_meta_df$Newspaper
+)
+```
+
+## Build and clean our corpus
+
+First we create a corpus from our articles and clean the data. The primary intention is to make the text usable for the sentiment analysis. We also remove stop words that are specific to this topic to make the analysis more complete and accurate. 
+
+```{r corpus}
+euro_corpus <- corpus(x=df, text_field = "text")
+```
+
+## Tokenize and Clean
+
+I removed common journalistic words as well as words that first appeared in my categories that were unhelpful in understanding the topics discussed. 
+
+```{r tokens}
+add_stops <- c(quanteda::stopwords("en", source = "smart"),
+               "said", "says", "told", "according", 
+               "`", "1", "vol", "pg", "fig", "2", "Fig", "Vol")
+
+toks <- tokens(euro_corpus, remove_punct = TRUE) |> 
+  tokens_tolower()
+
+toks1 <- tokens_select(toks, pattern = add_stops, selection = "remove")
+```
+
+### Bing lexicon sentiments
+```{r}
+bing <- get_sentiments("bing")
+
+#score corpus with Bing
+bing_scores <- euro_corpus |> 
+  tidy() |>
+  unnest_tokens(word, text) |> 
+  inner_join(bing, by = "word") |> 
+  count(id, sentiment) |> 
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) |> 
+  mutate(score = positive - negative)
+
+# join scores to corpus
+euro_corpus <- euro_corpus |> 
+  tidy() |>
+  left_join(bing_scores |> 
+              select(id, score), by = "id") |> 
+  mutate(bing_score = replace_na(score, 0)) 
+
+
+```
+
+Visualize the positive and negative sentiments based on the bing scores.
+
+```{r}
+# visualize bing sentiment about oyster aquaculture
+bing_scores |> 
+  summarise(positive = sum(positive), negative = sum(negative)) |>
+  pivot_longer(everything(), names_to = "sentiment", values_to = "n") |>
+  ggplot() + 
+  geom_col(aes(reorder(sentiment, n), n),
+           fill = "#E8B4BC") +
+  coord_flip() + 
+  theme_minimal() + 
+  labs(title = "Europe BING Sentiment about 'Oyster Aquaculture'",
+       y = "",
+       x = "Sentiment")
+```
+
+
+### NRC lexicon
+```{r}
+nrc <- get_sentiments("nrc")
+
+# calculate the nrc scores
+nrc_scores <- euro_corpus |> 
+  unnest_tokens(word, text) |> 
+  inner_join(nrc, by = "word") |> 
+  group_by(id) |> 
+  count(sentiment)
+
+#join scores to post
+euro_corpus <- euro_corpus |> 
+  left_join(nrc_scores, by = "id")
+
+# replace na scores with zero
+euro_corpus <- euro_corpus |> 
+  mutate(nrc_score = replace_na(n, 0)) |> 
+  select(-n)
+```
+Visualize the sentiments found in the text discussing oyster aquaculture in Europe.
+```{r}
+#visualize bluesky sentiment about sea level rise
+ggplot(nrc_scores) + 
+  geom_col(aes(reorder(sentiment, n), n),
+           fill = "#E8B4BC") +
+  coord_flip() + 
+  theme_minimal() + 
+  labs(title = "Europe NRC Sentiment about 'Oyster Aquaculture'",
+       y = "",
+       x = "Sentiment")
+```
+
+# Eastern Asia text sentiment analysis about oyster aquaculture
+
+### Read in the data
+```{r}
+# extract data from the files
+pre_files <- list.files(
+  path = here::here("data", "oysteraqua_easternasia"),   
+  pattern = "\\.docx$",
+  full.names = TRUE,
+  recursive = TRUE,
+  ignore.case = TRUE
+)
+
+pre_dat <- lnt_read(pre_files)
+
+pre_meta_df       <- pre_dat@meta
+pre_articles_df   <- pre_dat@articles
+pre_paragraphs_df <- pre_dat@paragraphs
+
+df <- tibble(
+  date     = pre_meta_df$Date,
+  headline = pre_meta_df$Headline,
+  id       = pre_meta_df$ID,
+  text     = pre_articles_df$Article,
+  source   = pre_meta_df$Newspaper
+)
+```
+
+## Build and clean our corpus
+
+First we create a corpus from our articles and clean the data. The primary intention is to make the text usable for the sentiment analysis. We also remove stop words that are specific to this topic to make the analysis more complete and accurate. 
+
+```{r corpus}
+eas_corpus <- corpus(x=df, text_field = "text")
+```
+
+## Tokenize and Clean
+
+I removed common journalistic words as well as words that first appeared in my categories that were unhelpful in understanding the topics discussed. 
+
+```{r tokens}
+add_stops <- c(quanteda::stopwords("en", source = "smart"),
+               "said", "says", "told", "according", 
+               "`", "1", "vol", "pg", "fig", "2", "Fig", "Vol")
+
+toks <- tokens(eas_corpus, remove_punct = TRUE) |> 
+  tokens_tolower()
+
+toks1 <- tokens_select(toks, pattern = add_stops, selection = "remove")
+```
+
+### Bing lexicon sentiments
+```{r}
+bing <- get_sentiments("bing")
+
+#score corpus with Bing
+bing_scores <- eas_corpus |> 
+  tidy() |>
+  unnest_tokens(word, text) |> 
+  inner_join(bing, by = "word") |> 
+  count(id, sentiment) |> 
+  pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) |> 
+  mutate(score = positive - negative)
+
+# join scores to corpus
+eas_corpus <- eas_corpus |> 
+  tidy() |>
+  left_join(bing_scores |> 
+              select(id, score), by = "id") |> 
+  mutate(bing_score = replace_na(score, 0)) 
+
+
+```
+
+Visualize the positive and negative sentiments based on the bing scores.
+
+```{r}
+# visualize bing sentiment about oyster aquaculture
+bing_scores |> 
+  summarise(positive = sum(positive), negative = sum(negative)) |>
+  pivot_longer(everything(), names_to = "sentiment", values_to = "n") |>
+  ggplot() + 
+  geom_col(aes(reorder(sentiment, n), n),
+           fill = "#5A6650") +
+  coord_flip() + 
+  theme_minimal() + 
+  labs(title = "East Asia BING Sentiment about 'Oyster Aquaculture'",
+       y = "",
+       x = "Sentiment")
+```
+### NRC lexicon
+```{r}
+nrc <- get_sentiments("nrc")
+
+# calculate the nrc scores
+nrc_scores <- eas_corpus |> 
+  unnest_tokens(word, text) |> 
+  inner_join(nrc, by = "word") |> 
+  group_by(id) |> 
+  count(sentiment)
+
+#join scores to post
+eas_corpus <- eas_corpus |> 
+  left_join(nrc_scores, by = "id")
+
+# replace na scores with zero
+eas_corpus <- eas_corpus |> 
+  mutate(nrc_score = replace_na(n, 0)) |> 
+  select(-n)
+```
+Visualize the sentiments found in the text discussing oyster aquaculture in Europe.
+```{r}
+#visualize bluesky sentiment about sea level rise
+ggplot(nrc_scores) + 
+  geom_col(aes(reorder(sentiment, n), n),
+           fill = "#5A6650") +
+  coord_flip() + 
+  theme_minimal() + 
+  labs(title = "East Asia NRC Sentiment about 'Oyster Aquaculture'",
+       y = "",
+       x = "Sentiment")
+```
+
+# References
+
+Ólafsson, B. (2022). What are the environmental impacts of oysters? Retrieved from https://sentientmedia.org/oyster-farming/  
+
+
+
+
