@@ -19,7 +19,9 @@ My interest is in analyzing whether specific regions have more negative or more 
 
 ### Nexis Unis
 
-Nexis Unis oyster aquaculture data was downloaded for the US, Europe, Eastern Asia, and Latin America. These four regions were analyzed to assess the sentiments of oyster aquaculture and compare findings by region. These regions were selected for this analysis because the top five countries for oyster aquaculture production are China, South Korea, Japan, US, and France. Hence these are areas of interest in the topic of oyster aquaculture. 
+Nexis Unis oyster aquaculture data was downloaded for the US, Europe, Eastern Asia, and Latin America. These four regions were analyzed to assess the sentiments of oyster aquaculture and compare findings by region. These regions were selected for this analysis because the top five countries for oyster aquaculture production are China, South Korea, Japan, US, and France. Hence these are areas of interest in the topic of oyster aquaculture and the regions for which text was procured.  
+
+One limitation of this study is that all the articles must be in English to properly analyze them. There are great discrepancies in the number of articles for each region. These findings are nevertheless interesting as they show what types of texts are translated. In other words, the translated text acts as an analysis of what the perception of the sentiment for these regions is from a US scholar perception and not necessarily the true sentiment itself. 
 
 ```{r}
 # load necessary libraries
@@ -40,11 +42,11 @@ library(servr)
 library(sentimentr)
 ```
 
-
+# Analyze United States text sentiment for oyster aquaculture
 ```{r}
 # extract data from the files
 pre_files <- list.files(
-  path = here::here("data", "oysteraqua_easternasia"),   
+  path = here::here("data", "oysteraqua_us"),   
   pattern = "\\.docx$",
   full.names = TRUE,
   recursive = TRUE,
@@ -67,9 +69,7 @@ df <- tibble(
 ```
 
 **1. Build and clean your corpus**
-Create a corpus from your articles. Clean appropriately for your data —
-consider what stopwords, minimum document frequencies, and tokenization
-choices make sense given your specific corpus.
+First we create a corpus from our articles and clean the data. The primary 
 
 ## Build the Corpus
 
@@ -77,7 +77,7 @@ We use `corpus()` from {quanteda} to build the corpus from our data
 frame.
 
 ```{r corpus}
-ea_corpus <- corpus(x=df, text_field = "text")
+us_corpus <- corpus(x=df, text_field = "text")
 ```
 
 ## Tokenize and Clean
@@ -87,9 +87,9 @@ I removed common journalistic words as well as words that first appeared in my c
 ```{r tokens}
 add_stops <- c(quanteda::stopwords("en", source = "smart"),
                "said", "says", "told", "according", 
-               "`", "1", "vol", "pg", "fig", "2")
+               "`", "1", "vol", "pg", "fig", "2", "Fig")
 
-toks <- tokens(ea_corpus, remove_punct = TRUE) |> 
+toks <- tokens(us_corpus, remove_punct = TRUE) |> 
   tokens_tolower()
 
 toks1 <- tokens_select(toks, pattern = add_stops, selection = "remove")
@@ -116,8 +116,8 @@ I built a document-feature matrix (DFM) to remove words that are used in 2 or fe
 ```{r}
 bing <- get_sentiments("bing")
 
-#score posts with Bing
-bing_scores <- ea_corpus |> 
+#score corpus with Bing
+bing_scores <- us_corpus |> 
   tidy() |>
   unnest_tokens(word, text) |> 
   inner_join(bing, by = "word") |> 
@@ -125,8 +125,8 @@ bing_scores <- ea_corpus |>
   pivot_wider(names_from = sentiment, values_from = n, values_fill = 0) |> 
   mutate(score = positive - negative)
 
-# join scores to posts
-ea_corpus <- ea_corpus |> 
+# join scores to corpus
+us_corpus <- us_corpus |> 
   tidy() |>
   left_join(bing_scores |> 
               select(id, score), by = "id") |> 
@@ -138,7 +138,7 @@ ea_corpus <- ea_corpus |>
 Visualize the positive and negative sentiments based on the bing scores.
 
 ```{r}
-# visualize sentiment about oyster aquaculture
+# visualize bing sentiment about oyster aquaculture
 bing_scores |> 
   summarise(positive = sum(positive), negative = sum(negative)) |>
   pivot_longer(everything(), names_to = "sentiment", values_to = "n") |>
@@ -147,7 +147,7 @@ bing_scores |>
            fill = "darkblue") +
   coord_flip() + 
   theme_minimal() + 
-  labs(title = "East Asian Sentiment about 'Oyster Aquaculture'",
+  labs(title = "United States Bing Sentiment about 'Oyster Aquaculture'",
        y = "",
        x = "Sentiment")
 ```
@@ -157,35 +157,36 @@ bing_scores |>
 afinn <- get_sentiments("afinn")
 
 #score text
-afinn_scores <- ea_corpus |> 
+afinn_scores <- us_corpus |> 
   unnest_tokens(word, text) |> 
   inner_join(afinn, by = "word") |> 
   group_by(id)|> 
   summarise(affin_score = sum(value))
 
 
-#join scores to posts  
-ea_corpus <- ea_corpus |>
+#join scores to corpus
+us_corpus <- us_corpus |>
   left_join(afinn_scores, by ="id") 
 
 # remove na's from the afin scores column
-ea_corpus <- ea_corpus |> 
+us_corpus <- us_corpus |> 
   mutate(affin_score = replace_na(affin_score, 0))
 ```
 
 Visualize AFINN score 
 ```{r}
-ea_corpus$affin_sent <-  if_else(ea_corpus$affin_score > 0, "Positive", "Negative")
+# assign positive and negative to adinn scores based on the value
+us_corpus$affin_sent <-  if_else(us_corpus$affin_score > 0, "Positive", "Negative")
 
 # visualize sentiment about oyster aquaculture
-ea_corpus |> 
+us_corpus |> 
   count(affin_sent) |> 
 ggplot() + 
   geom_col(aes(affin_sent, n),
            fill = "darkblue") +
   coord_flip() + 
   theme_minimal() + 
-  labs(title = "East Asian Sentiment about 'Oyster Aquaculture'",
+  labs(title = "United States AFIN Sentiment about 'Oyster Aquaculture'",
        y = "",
        x = "Sentiment")
 ```
@@ -196,23 +197,23 @@ ggplot() +
 nrc <- get_sentiments("nrc")
 
 # calculate the nrc scores
-nrc_scores <- ea_corpus |> 
+nrc_scores <- us_corpus |> 
   unnest_tokens(word, text) |> 
   inner_join(nrc, by = "word") |> 
   group_by(id) |> 
   count(sentiment)
 
 #join scores to post
-ea_corpus <- ea_corpus |> 
+us_corpus <- us_corpus |> 
   left_join(nrc_scores, by = "id")
 
 # replace na scores with zero
-ea_corpus <- ea_corpus |> 
+us_corpus <- us_corpus |> 
   mutate(nrc_score = replace_na(n, 0)) |> 
   select(-n)
 ```
 
-Visualize the sentiments found in the text discussing oyster aquaculture in East Asia.
+Visualize the sentiments found in the text discussing oyster aquaculture in the United States.
 ```{r}
 #visualize bluesky sentiment about sea level rise
 ggplot(nrc_scores) + 
@@ -220,8 +221,65 @@ ggplot(nrc_scores) +
            fill = "darkblue") +
   coord_flip() + 
   theme_minimal() + 
-  labs(title = "East Asia Sentiment about 'Oyster Aquaculture'",
+  labs(title = "United States NRC Sentiment about 'Oyster Aquaculture'",
+       y = "",
+       x = "Sentiment")
+```
+## VADER score
+```{r}
+us_corpus <- us_corpus |> 
+  mutate(vader_score = purrr::map(text, ~ tidyvader::vader_chr(.x)$compound))
+```
+
+Visualize the VADER score.
+```{r}
+# assign positive and negative to adinn scores based on the value
+us_corpus$vader_sent <-  if_else(us_corpus$vader_score > 0, "Positive", "Negative")
+
+
+# visualize sentiment about oyster aquaculture
+us_corpus |> 
+  count(vader_sent) |> 
+ggplot() + 
+  geom_col(aes(vader_sent, n),
+           fill = "darkblue") +
+  coord_flip() + 
+  theme_minimal() + 
+  labs(title = "United States VADER Sentiment about 'Oyster Aquaculture'",
        y = "",
        x = "Sentiment")
 ```
 
+# Explore classification differences between the different lexicon sentiment analysis
+
+For this analysis, we start by analyzing the differences between the BING and the AFINN scores. When the scores do not match, one score being negative and one score being positive, let's analyze which is more accurate. We can also analyze what the NRC and VADER score show. 
+
+```{r}
+# select those texts where the bing and afinn score don't match
+diff_bing_affin <- us_corpus |> 
+  mutate(bing_categ = ifelse(bing_score > 0, "positive", "negative"),
+affin_categ = ifelse(affin_score > 0, "positive", "negative")) |> 
+  filter(bing_categ != affin_categ)
+
+# calculate absolute difference in bing and afinn scores
+diff_reorder<- diff_bing_affin |> 
+  mutate(diff_bing_affin = abs(bing_score - affin_score)) |> 
+  arrange(desc(diff_bing_affin))
+
+# calculate average NRC scores
+diff_reorder <- diff_reorder |> 
+                          group_by(id) |> 
+                          mutate(nrc_avg = mean(nrc_score))
+```
+
+Explore the greatest mis-classifications and determine which is classification is best
+```{r}
+diff_reorder$text[1]
+paste0("The BING score is ", diff_reorder$bing_score[1])
+paste0("The AFINN score is ", diff_reorder$affin_score[1])
+paste0("The NRC score is ", diff_reorder$nrc_avg[1])
+paste0("The VADER score is ", diff_reorder$vader_score[1])
+
+```
+
+Overall the text is scientific. 
